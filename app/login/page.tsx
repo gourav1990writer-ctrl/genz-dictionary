@@ -7,6 +7,7 @@ type Role = "en_student" | "fr_student"
 
 export default function LoginPage() {
   const supabase = supabaseBrowser()
+
   const [mode, setMode] = useState<"signin" | "signup">("signin")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -20,11 +21,12 @@ export default function LoginPage() {
       const { data } = await supabase.auth.getUser()
       setWho(data.user?.email ?? null)
     })()
-  }, [])
+  }, [supabase])
 
   const handle = async () => {
     setMsg(null)
     setLoading(true)
+
     try {
       if (!email || !password) {
         setMsg("Please enter email and password.")
@@ -32,30 +34,31 @@ export default function LoginPage() {
       }
 
       if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({ email, password })
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        })
+
         if (error) throw error
 
-        // If Supabase email confirmation is ON, user may not be fully logged in yet.
-        // Still, profile row will exist via trigger once user is created.
-        // When they sign in, we’ll store role too.
         if (data.user?.id) {
-          await supabase
-            .from("profiles")
-            .update({ role })
-            .eq("id", data.user.id)
+          await supabase.from("profiles").update({ role }).eq("id", data.user.id)
         }
 
         setMsg(
-          "Account created. If email confirmation is ON, check inbox, then sign in. (Role saved.)"
+          "Account created. If email confirmation is enabled, please check your inbox, confirm your email, and then sign in."
         )
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
+
         if (error) throw error
 
-        // Ensure role is set if missing (helps if email confirmation delayed profile updates)
         if (data.user?.id) {
           const { data: p } = await supabase
             .from("profiles")
@@ -83,113 +86,239 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: "sans-serif", maxWidth: 560 }}>
-      <h1 style={{ fontSize: 28, marginBottom: 8 }}>Login</h1>
-
-      <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        <a href="/">Home</a>
-        <a href="/submit">Submit</a>
-        <a href="/admin">Admin</a>
-        {who ? (
-          <button onClick={signOut} style={{ padding: "6px 10px" }}>
-            Sign out ({who})
-          </button>
-        ) : null}
-      </div>
-
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        <button
-          onClick={() => setMode("signin")}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: "1px solid #444",
-            background: mode === "signin" ? "#222" : "transparent",
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
-          Sign in
-        </button>
-        <button
-          onClick={() => setMode("signup")}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 8,
-            border: "1px solid #444",
-            background: mode === "signup" ? "#222" : "transparent",
-            color: "white",
-            cursor: "pointer",
-          }}
-        >
-          Sign up
-        </button>
-      </div>
-
-      {mode === "signup" && (
-        <>
-          <label>Are you a…</label>
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role)}
-            style={{ width: "100%", padding: 10, borderRadius: 8, marginBottom: 12 }}
-          >
-            <option value="en_student">English student (adds English words)</option>
-            <option value="fr_student">French student (adds French words)</option>
-          </select>
-        </>
-      )}
-
-      <label>Email</label>
-      <input
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="you@example.com"
+    <main
+      style={{
+        minHeight: "100vh",
+        background: "#f5f7fb",
+        padding: "32px 16px",
+        fontFamily: "Arial, sans-serif",
+        color: "#111827",
+      }}
+    >
+      <div
         style={{
-          width: "100%",
-          padding: 10,
-          borderRadius: 8,
-          border: "1px solid #444",
-          marginBottom: 12,
-          background: "transparent",
-          color: "white",
-        }}
-      />
-
-      <label>Password</label>
-      <input
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        type="password"
-        placeholder="••••••••"
-        style={{
-          width: "100%",
-          padding: 10,
-          borderRadius: 8,
-          border: "1px solid #444",
-          marginBottom: 12,
-          background: "transparent",
-          color: "white",
-        }}
-      />
-
-      <button
-        onClick={handle}
-        disabled={loading}
-        style={{
-          padding: "10px 14px",
-          borderRadius: 10,
-          border: "1px solid #444",
-          background: "#111",
-          color: "white",
-          cursor: "pointer",
-          width: "100%",
+          maxWidth: 560,
+          margin: "0 auto",
+          background: "#ffffff",
+          border: "1px solid #e5e7eb",
+          borderRadius: 16,
+          padding: 24,
+          boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
         }}
       >
-        {loading ? "Please wait..." : mode === "signup" ? "Create account" : "Sign in"}
-      </button>
+        <h1
+          style={{
+            fontSize: 30,
+            fontWeight: 700,
+            marginBottom: 8,
+            color: "#111827",
+          }}
+        >
+          Login
+        </h1>
 
-      {msg && <p style={{ marginTop: 12 }}>{msg}</p>}
+        <p style={{ marginTop: 0, marginBottom: 18, color: "#4b5563" }}>
+          Sign in to your Gen-Z Dictionary account or create a new one.
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            marginBottom: 18,
+            flexWrap: "wrap",
+            fontSize: 14,
+          }}
+        >
+          <a href="/" style={{ color: "#2563eb", textDecoration: "none" }}>
+            Home
+          </a>
+          <a href="/submit" style={{ color: "#2563eb", textDecoration: "none" }}>
+            Submit
+          </a>
+          <a href="/admin" style={{ color: "#2563eb", textDecoration: "none" }}>
+            Admin
+          </a>
+
+          {who ? (
+            <button
+              onClick={signOut}
+              style={{
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+                background: "#ffffff",
+                color: "#111827",
+                cursor: "pointer",
+              }}
+            >
+              Sign out ({who})
+            </button>
+          ) : null}
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          <button
+            onClick={() => setMode("signin")}
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: mode === "signin" ? "1px solid #111827" : "1px solid #d1d5db",
+              background: mode === "signin" ? "#111827" : "#f9fafb",
+              color: mode === "signin" ? "#ffffff" : "#111827",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            Sign in
+          </button>
+
+          <button
+            onClick={() => setMode("signup")}
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: mode === "signup" ? "1px solid #111827" : "1px solid #d1d5db",
+              background: mode === "signup" ? "#111827" : "#f9fafb",
+              color: mode === "signup" ? "#ffffff" : "#111827",
+              cursor: "pointer",
+              fontWeight: 600,
+            }}
+          >
+            Sign up
+          </button>
+        </div>
+
+        {mode === "signup" && (
+          <div style={{ marginBottom: 16 }}>
+            <label
+              style={{
+                display: "block",
+                marginBottom: 8,
+                fontWeight: 600,
+                color: "#111827",
+              }}
+            >
+              Are you a…
+            </label>
+
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value as Role)}
+              style={{
+                width: "100%",
+                padding: 12,
+                borderRadius: 10,
+                border: "1px solid #d1d5db",
+                background: "#ffffff",
+                color: "#111827",
+                fontSize: 15,
+              }}
+            >
+              <option value="en_student">English student (adds English words)</option>
+              <option value="fr_student">French student (adds French words)</option>
+            </select>
+          </div>
+        )}
+
+        <div style={{ marginBottom: 14 }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 600,
+              color: "#111827",
+            }}
+          >
+            Email
+          </label>
+
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            type="email"
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #d1d5db",
+              background: "#ffffff",
+              color: "#111827",
+              fontSize: 15,
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: 8,
+              fontWeight: 600,
+              color: "#111827",
+            }}
+          >
+            Password
+          </label>
+
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            placeholder="••••••••"
+            style={{
+              width: "100%",
+              padding: 12,
+              borderRadius: 10,
+              border: "1px solid #d1d5db",
+              background: "#ffffff",
+              color: "#111827",
+              fontSize: 15,
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+
+        <button
+          onClick={handle}
+          disabled={loading}
+          style={{
+            padding: "12px 14px",
+            borderRadius: 10,
+            border: "none",
+            background: loading ? "#9ca3af" : "#2563eb",
+            color: "#ffffff",
+            cursor: loading ? "not-allowed" : "pointer",
+            width: "100%",
+            fontWeight: 700,
+            fontSize: 15,
+          }}
+        >
+          {loading ? "Please wait..." : mode === "signup" ? "Create account" : "Sign in"}
+        </button>
+
+        {msg && (
+          <p
+            style={{
+              marginTop: 14,
+              padding: 12,
+              borderRadius: 10,
+              background: "#f3f4f6",
+              color: "#111827",
+              fontSize: 14,
+              lineHeight: 1.5,
+            }}
+          >
+            {msg}
+          </p>
+        )}
+      </div>
     </main>
   )
 }
